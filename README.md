@@ -3,6 +3,8 @@
 [![Documentation Status](https://readthedocs.org/projects/rainbow-api/badge/?version=latest)](https://rainbow-api.readthedocs.io/en/latest/?badge=latest)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/rainbow-api)](https://pypi.org/project/rainbow-api)
 
+**p3bm modifications** 20Oct2023 - Aim to modify chemstation.py file to correctly read in .uv file data recorded in OpenLabs, based on R code by ethanbass found [here](https://github.com/ethanbass/chromConverter/blob/dev/R/read_chemstation_uv.R).
+
 *rainbow* provides programmatic access to the raw data encoded in chromatography and mass spectrometry binary files. This library supports the following vendors and detectors:
 
 **Agilent .D**
