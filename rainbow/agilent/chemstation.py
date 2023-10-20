@@ -292,6 +292,19 @@ def parse_uv(path):
         f.close()
         return None
 
+    # Read file metadata.
+    metadata_offsets = {
+        "notebook": 0x35A,
+        "date": 0x957,
+        "method": 0xA0E,
+        "unit": 0xC15,
+        "signal": 0xC40,
+        "vialpos": 0xFD7,
+        "filetypeno": 0x146,
+        "filetypename": 0x15B
+    }
+    metadata = read_header(f, metadata_offsets)
+ 
     # Extract the number of retention times.
     f.seek(data_offsets["num_times"])
     num_times = struct.unpack(">I", f.read(4))[0]
@@ -312,21 +325,29 @@ def parse_uv(path):
     f.seek(data_offsets["data_start"])
     times = np.empty(num_times, dtype=np.uint32)
     data = np.empty((num_times, num_wavelengths), dtype=np.int64)
-    for i in range(num_times):
-        f.read(4)
-        times[i] = uint_unpack(f.read(4))[0]
-        f.read(14)
-        # If the next short is equal to -0x8000
-        #     then the next absorbance value is the next integer. 
-        # Otherwise, the short is a delta from the last absorbance value.
-        absorb_accum = 0 
-        for j in range(num_wavelengths):
-            check_int = short_unpack(f.read(2))[0]
-            if check_int == -0x8000:
-                absorb_accum = int_unpack(f.read(4))[0]
-            else: 
-                absorb_accum += check_int
-            data[i, j] = absorb_accum
+    if metadata["filetypename"][:2] == "OL":
+        for i in range(num_times):
+             f.read(4)
+             times[i] = uint_unpack(f.read(4))[0]
+             f.read(14)
+             for j in range(num_wavelengths):
+                 data[i,j] = double_unpack(f.read(8))[0]
+    else:
+        for i in range(num_times):
+            f.read(4)
+            times[i] = uint_unpack(f.read(4))[0]
+            f.read(14)
+            # If the next short is equal to -0x8000
+            #     then the next absorbance value is the next integer. 
+            # Otherwise, the short is a delta from the last absorbance value.
+            absorb_accum = 0 
+            for j in range(num_wavelengths):
+                check_int = short_unpack(f.read(2))[0]
+                if check_int == -0x8000:
+                    absorb_accum = int_unpack(f.read(4))[0]
+                else: 
+                    absorb_accum += check_int
+                data[i, j] = absorb_accum
 
     # Covert times to minutes. 
     times = times / 60000
@@ -335,17 +356,7 @@ def parse_uv(path):
     f.seek(data_offsets['scaling_factor'])
     scaling_factor = struct.unpack('>d', f.read(8))[0]
     data = data * scaling_factor
-
-    # Read file metadata.
-    metadata_offsets = {
-        "notebook": 0x35A,
-        "date": 0x957,
-        "method": 0xA0E,
-        "unit": 0xC15,
-        "signal": 0xC40,
-        "vialpos": 0xFD7
-    }
-    metadata = read_header(f, metadata_offsets)
+ 
     f.close()
 
     return DataFile(path, 'UV', times, wavelengths, data, metadata)
@@ -373,7 +384,18 @@ def parse_uv_partial(path):
     uint_unpack = struct.Struct('<I').unpack 
     int_unpack = struct.Struct('<i').unpack 
     short_unpack = struct.Struct('<h').unpack
-    
+
+    # Read file metadata.
+    metadata_offsets = {
+        "notebook": 0x35A,
+        "date": 0x957,
+        "method": 0xA0E,
+        "unit": 0xC15,
+        "signal": 0xC40,
+        "vialpos": 0xFD7
+    }
+    metadata = read_header(f, metadata_offsets)
+ 
     # Compute the wavelengths by taking the range from 
     #     the header of the first data segment.
     # If this process fails, then the file is not a partial. 
@@ -391,21 +413,29 @@ def parse_uv_partial(path):
     absorbances = []
     while True:
         try:
-            f.read(4)
-            time = uint_unpack(f.read(4))[0]
-            times.append(time)
-            f.read(14)
-            # If the next short is equal to -0x8000
-            #     then the next absorbance value is the next integer. 
-            # Otherwise, the short is a delta from the last absorbance value.
-            absorb_accum = 0
-            for _ in range(wavelengths.size):
-                check_int = short_unpack(f.read(2))[0]
-                if check_int == -0x8000:
-                    absorb_accum = int_unpack(f.read(4))[0]
-                else: 
-                    absorb_accum += check_int
-                absorbances.append(absorb_accum)
+            if metadata["filetypename"][:2] == "OL":
+                for i in range(num_times):
+                    f.read(4)
+                    times[i] = uint_unpack(f.read(4))[0]
+                    f.read(14)
+                    for j in range(num_wavelengths):
+                        data[i,j] = double_unpack(f.read(8))[0]
+            else:
+                for i in range(num_times):
+                    f.read(4)
+                    times[i] = uint_unpack(f.read(4))[0]
+                    f.read(14)
+                    # If the next short is equal to -0x8000
+                    #     then the next absorbance value is the next integer. 
+                    # Otherwise, the short is a delta from the last absorbance value.
+                    absorb_accum = 0 
+                    for j in range(num_wavelengths):
+                        check_int = short_unpack(f.read(2))[0]
+                        if check_int == -0x8000:
+                            absorb_accum = int_unpack(f.read(4))[0]
+                        else: 
+                            absorb_accum += check_int
+                        data[i, j] = absorb_accum
         except Exception:
             break
 
@@ -417,17 +447,7 @@ def parse_uv_partial(path):
     f.seek(data_offsets['scaling_factor'])
     scaling_factor = struct.unpack('>d', f.read(8))[0]
     data = data * scaling_factor
-
-    # Read file metadata.
-    metadata_offsets = {
-        "notebook": 0x35A,
-        "date": 0x957,
-        "method": 0xA0E,
-        "unit": 0xC15,
-        "signal": 0xC40,
-        "vialpos": 0xFD7
-    }
-    metadata = read_header(f, metadata_offsets)
+ 
     f.close()
 
     return DataFile(path, 'UV', times, wavelengths, data, metadata)
